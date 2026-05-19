@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { Resend } from "resend";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { renderBlocksToHtml, Block } from "@/lib/email-renderer";
+import { renderBlocksToHtml, renderBlocksToText, Block, AgentFooter } from "@/lib/email-renderer";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -38,16 +38,46 @@ export async function POST(req: NextRequest) {
     ? `${settings.senderName} <${settings.senderEmail || "onboarding@resend.dev"}>`
     : settings.senderEmail || "onboarding@resend.dev";
 
+  const footer: AgentFooter = {
+    agentName:  settings.footerAgentName  || undefined,
+    title:      settings.footerTitle      || undefined,
+    phone:      settings.footerPhone      || undefined,
+    website:    settings.footerWebsite    || undefined,
+    address:    settings.footerAddress    || undefined,
+    customText: settings.footerCustomText || undefined,
+  };
+
   let successCount = 0;
   const errors: string[] = [];
 
   for (const recipient of recipients) {
-    const html = await renderBlocksToHtml(blocks, { name: recipient.name || "", email: recipient.email });
+    const vars: Record<string, string> = {
+      name:           recipient.name  || "",
+      email:          recipient.email || "",
+      // placeholder — agents can hook up a real unsubscribe URL later
+      unsubscribeUrl: `mailto:${settings.senderEmail || ""}?subject=Unsubscribe`,
+    };
+
+    const [html, text] = await Promise.all([
+      renderBlocksToHtml(blocks, vars, footer),
+      Promise.resolve(renderBlocksToText(blocks, vars, footer)),
+    ]);
+
     const { error } = await resend.emails.send({
       from,
       to: recipient.email,
       subject: template.subject,
       html,
+      text,
+      headers: {
+        // RFC 2369 — tells email clients to show an Unsubscribe button
+        "List-Unsubscribe":      `<mailto:${settings.senderEmail || ""}?subject=Unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        // Precedence bulk signals bulk mail — reduces spam score
+        "Precedence": "bulk",
+        // X-Mailer for transparency
+        "X-Mailer": "PropMail/1.0",
+      },
     });
 
     if (error) {

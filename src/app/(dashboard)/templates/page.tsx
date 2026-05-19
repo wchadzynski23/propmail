@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Edit2, Trash2, Send, Clock, MoreVertical } from "lucide-react";
+import { Plus, FileText, Edit2, Trash2, Send, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -47,12 +47,20 @@ export default function TemplatesPage() {
             {templates.length} template{templates.length !== 1 ? "s" : ""} ready to send
           </p>
         </div>
-        <Link href="/templates/new">
-          <Button variant="console">
-            <Plus className="h-4 w-4" />
-            New Template
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/templates/gallery">
+            <Button variant="metal">
+              <Sparkles className="h-4 w-4" />
+              Starter Gallery
+            </Button>
+          </Link>
+          <Link href="/templates/new">
+            <Button variant="console">
+              <Plus className="h-4 w-4" />
+              New Template
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {loading ? (

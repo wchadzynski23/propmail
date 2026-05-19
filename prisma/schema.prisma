@@ -20,12 +20,19 @@ model User {
 }
 
 model UserSettings {
-  id           String  @id @default(cuid())
-  userId       String  @unique
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resendApiKey String?
-  senderEmail  String?
-  senderName   String?
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resendApiKey      String?
+  senderEmail       String?
+  senderName        String?
+  // Agent footer / signature
+  footerAgentName   String?
+  footerTitle       String?
+  footerPhone       String?
+  footerAddress     String?  // Physical address — required for CAN-SPAM
+  footerWebsite     String?
+  footerCustomText  String?  // Free-form closing note
 }
 
 model Template {

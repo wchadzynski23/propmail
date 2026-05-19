@@ -18,12 +18,22 @@ export async function PUT(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as { id: string }).id;
-  const { resendApiKey, senderEmail, senderName } = await req.json();
+  const {
+    resendApiKey, senderEmail, senderName,
+    footerAgentName, footerTitle, footerPhone,
+    footerAddress, footerWebsite, footerCustomText,
+  } = await req.json();
+
+  const data = {
+    resendApiKey, senderEmail, senderName,
+    footerAgentName, footerTitle, footerPhone,
+    footerAddress, footerWebsite, footerCustomText,
+  };
 
   const settings = await db.userSettings.upsert({
     where: { userId },
-    create: { userId, resendApiKey, senderEmail, senderName },
-    update: { resendApiKey, senderEmail, senderName },
+    create: { userId, ...data },
+    update: data,
   });
 
   return NextResponse.json(settings);
