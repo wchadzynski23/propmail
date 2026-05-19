@@ -22,12 +22,19 @@ export async function PUT(req: NextRequest) {
     resendApiKey, senderEmail, senderName,
     footerAgentName, footerTitle, footerPhone,
     footerAddress, footerWebsite, footerCustomText,
+    smtpProvider, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword,
   } = await req.json();
 
   const data = {
     resendApiKey, senderEmail, senderName,
     footerAgentName, footerTitle, footerPhone,
     footerAddress, footerWebsite, footerCustomText,
+    smtpProvider: smtpProvider || null,
+    smtpHost:     smtpHost     || null,
+    smtpPort:     smtpPort     ? Number(smtpPort) : null,
+    smtpSecure:   smtpSecure   != null ? Boolean(smtpSecure) : null,
+    smtpUser:     smtpUser     || null,
+    smtpPassword: smtpPassword || null,
   };
 
   const settings = await db.userSettings.upsert({

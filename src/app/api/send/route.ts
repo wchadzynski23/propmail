@@ -1,20 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { renderBlocksToHtml, renderBlocksToText, Block, AgentFooter } from "@/lib/email-renderer";
+
+const ANTI_SPAM_HEADERS = (senderEmail: string) => ({
+  "List-Unsubscribe":      `<mailto:${senderEmail}?subject=Unsubscribe>`,
+  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  "Precedence":            "bulk",
+  "X-Mailer":              "PropMail/1.0",
+});
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as { id: string }).id;
-
   const settings = await db.userSettings.findUnique({ where: { userId } });
-  if (!settings?.resendApiKey) {
+
+  const provider = settings?.smtpProvider || "resend";
+
+  // Validate provider credentials exist
+  if (provider === "resend" && !settings?.resendApiKey) {
     return NextResponse.json(
       { error: "Resend API key not configured. Go to Settings first." },
+      { status: 400 }
+    );
+  }
+  if (provider !== "resend" && (!settings?.smtpUser || !settings?.smtpPassword)) {
+    return NextResponse.json(
+      { error: "SMTP credentials not configured. Go to Settings first." },
       { status: 400 }
     );
   }
@@ -32,20 +49,36 @@ export async function POST(req: NextRequest) {
   if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
   const blocks = JSON.parse(template.blocks) as Block[];
-  const resend = new Resend(settings.resendApiKey);
 
-  const from = settings.senderName
-    ? `${settings.senderName} <${settings.senderEmail || "onboarding@resend.dev"}>`
-    : settings.senderEmail || "onboarding@resend.dev";
+  const from = settings?.senderName
+    ? `${settings.senderName} <${settings.senderEmail || settings.smtpUser || ""}>`
+    : settings?.senderEmail || settings?.smtpUser || "";
 
   const footer: AgentFooter = {
-    agentName:  settings.footerAgentName  || undefined,
-    title:      settings.footerTitle      || undefined,
-    phone:      settings.footerPhone      || undefined,
-    website:    settings.footerWebsite    || undefined,
-    address:    settings.footerAddress    || undefined,
-    customText: settings.footerCustomText || undefined,
+    agentName:  settings?.footerAgentName  || undefined,
+    title:      settings?.footerTitle      || undefined,
+    phone:      settings?.footerPhone      || undefined,
+    website:    settings?.footerWebsite    || undefined,
+    address:    settings?.footerAddress    || undefined,
+    customText: settings?.footerCustomText || undefined,
   };
+
+  // Build SMTP transporter once if needed
+  let smtpTransporter: nodemailer.Transporter | null = null;
+  if (provider !== "resend") {
+    smtpTransporter = nodemailer.createTransport({
+      host:   settings!.smtpHost!,
+      port:   settings!.smtpPort!,
+      secure: settings!.smtpSecure ?? false,
+      auth: {
+        user: settings!.smtpUser!,
+        pass: settings!.smtpPassword!,
+      },
+    });
+  }
+
+  const resend = provider === "resend" ? new Resend(settings!.resendApiKey!) : null;
+  const replyTo = settings?.senderEmail || settings?.smtpUser || "";
 
   let successCount = 0;
   const errors: string[] = [];
@@ -54,8 +87,7 @@ export async function POST(req: NextRequest) {
     const vars: Record<string, string> = {
       name:           recipient.name  || "",
       email:          recipient.email || "",
-      // placeholder — agents can hook up a real unsubscribe URL later
-      unsubscribeUrl: `mailto:${settings.senderEmail || ""}?subject=Unsubscribe`,
+      unsubscribeUrl: `mailto:${replyTo}?subject=Unsubscribe`,
     };
 
     const [html, text] = await Promise.all([
@@ -63,27 +95,30 @@ export async function POST(req: NextRequest) {
       Promise.resolve(renderBlocksToText(blocks, vars, footer)),
     ]);
 
-    const { error } = await resend.emails.send({
-      from,
-      to: recipient.email,
-      subject: template.subject,
-      html,
-      text,
-      headers: {
-        // RFC 2369 — tells email clients to show an Unsubscribe button
-        "List-Unsubscribe":      `<mailto:${settings.senderEmail || ""}?subject=Unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        // Precedence bulk signals bulk mail — reduces spam score
-        "Precedence": "bulk",
-        // X-Mailer for transparency
-        "X-Mailer": "PropMail/1.0",
-      },
-    });
-
-    if (error) {
-      errors.push(`${recipient.email}: ${error.message}`);
-    } else {
+    try {
+      if (provider === "resend" && resend) {
+        const { error } = await resend.emails.send({
+          from,
+          to: recipient.email,
+          subject: template.subject,
+          html,
+          text,
+          headers: ANTI_SPAM_HEADERS(replyTo),
+        });
+        if (error) throw new Error(error.message);
+      } else if (smtpTransporter) {
+        await smtpTransporter.sendMail({
+          from,
+          to: recipient.email,
+          subject: template.subject,
+          html,
+          text,
+          headers: ANTI_SPAM_HEADERS(replyTo),
+        });
+      }
       successCount++;
+    } catch (err) {
+      errors.push(`${recipient.email}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

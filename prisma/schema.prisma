@@ -33,6 +33,13 @@ model UserSettings {
   footerAddress     String?  // Physical address — required for CAN-SPAM
   footerWebsite     String?
   footerCustomText  String?  // Free-form closing note
+  // SMTP / sending provider
+  smtpProvider      String?  // "resend" | "gmail" | "outlook" | "yahoo" | "custom"
+  smtpHost          String?
+  smtpPort          Int?
+  smtpSecure        Boolean? // true = TLS on connect (port 465), false = STARTTLS (587)
+  smtpUser          String?
+  smtpPassword      String?
 }
 
 model Template {
