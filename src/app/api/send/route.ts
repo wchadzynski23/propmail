@@ -90,6 +90,8 @@ export async function POST(req: NextRequest) {
       unsubscribeUrl: `mailto:${replyTo}?subject=Unsubscribe`,
     };
 
+    const subject = template.subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+
     const [html, text] = await Promise.all([
       renderBlocksToHtml(blocks, vars, footer),
       Promise.resolve(renderBlocksToText(blocks, vars, footer)),
@@ -100,7 +102,7 @@ export async function POST(req: NextRequest) {
         const { error } = await resend.emails.send({
           from,
           to: recipient.email,
-          subject: template.subject,
+          subject,
           html,
           text,
           headers: ANTI_SPAM_HEADERS(replyTo),
@@ -110,7 +112,7 @@ export async function POST(req: NextRequest) {
         await smtpTransporter.sendMail({
           from,
           to: recipient.email,
-          subject: template.subject,
+          subject,
           html,
           text,
           headers: ANTI_SPAM_HEADERS(replyTo),
