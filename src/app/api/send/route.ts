@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
 
   for (const recipient of recipients) {
-    const html = renderBlocksToHtml(blocks, { name: recipient.name || "", email: recipient.email });
+    const html = await renderBlocksToHtml(blocks, { name: recipient.name || "", email: recipient.email });
     const { error } = await resend.emails.send({
       from,
       to: recipient.email,

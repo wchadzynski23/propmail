@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Type,
   Heading1,
@@ -398,16 +398,33 @@ function EmailPreview({ blocks }: { blocks: EditorBlock[] }) {
           <div className="h-3 w-3 rounded-full bg-primary/40" />
           <div className="h-3 w-3 rounded-full bg-status-green/60" />
         </div>
-        <span className="font-mono text-[10px] text-muted-foreground mx-auto">Email Preview</span>
+        <span className="font-mono text-[10px] text-muted-foreground mx-auto">Email Preview — as seen by recipient</span>
       </div>
-      <div className="bg-zinc-100 p-6">
-        <div className="max-w-xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-8 space-y-0">
-            {blocks.map((block) => (
-              <PreviewBlock key={block.id} block={block} />
-            ))}
+      {/* Dark email background matching renderer */}
+      <div className="p-6" style={{ backgroundColor: "#0f0f13" }}>
+        <div className="max-w-xl mx-auto overflow-hidden rounded-b-2xl" style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}>
+          {/* Top orange accent bar */}
+          <div style={{ height: "3px", background: "linear-gradient(90deg,#f97316,#fb923c,#fdba74)" }} />
+          {/* Card */}
+          <div style={{ backgroundColor: "#1a1a24", borderRadius: "0 0 20px 20px" }}>
+            <div style={{ padding: "40px 40px 32px" }}>
+              {blocks.map((block) => (
+                <PreviewBlock key={block.id} block={block} />
+              ))}
+            </div>
+            {/* Footer */}
+            <div style={{ padding: "0 40px 32px", borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: "8px" }}>
+              <p style={{ margin: "16px 0 0", fontSize: "12px", color: "#6b7280" }}>
+                You received this email because you are a valued client.
+                {" · "}
+                <span style={{ color: "#f97316" }}>Unsubscribe</span>
+              </p>
+            </div>
           </div>
         </div>
+        <p style={{ textAlign: "center", fontSize: "11px", color: "#374151", marginTop: "16px", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          Sent via <span style={{ color: "#f97316" }}>PropMail</span>
+        </p>
       </div>
     </div>
   );
@@ -417,55 +434,102 @@ function PreviewBlock({ block }: { block: EditorBlock }) {
   switch (block.type) {
     case "heading": {
       const b = block as { type: "heading"; content: string; level: 1 | 2 | 3 };
-      const sizes = { 1: "text-3xl", 2: "text-xl", 3: "text-lg" };
+      const styles = {
+        1: { fontSize: "30px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 },
+        2: { fontSize: "22px", fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.3 },
+        3: { fontSize: "18px", fontWeight: 600, lineHeight: 1.4 },
+      };
       const Tag = `h${b.level}` as "h1" | "h2" | "h3";
-      return <Tag className={cn(sizes[b.level], "font-bold text-gray-900 mb-4")}>{b.content}</Tag>;
+      return <Tag style={{ margin: "0 0 20px", color: "#f9fafb", ...styles[b.level] }}>{b.content}</Tag>;
     }
     case "text":
-      return <p className="text-gray-600 text-sm leading-7 mb-5 whitespace-pre-wrap">{(block as { content: string }).content}</p>;
+      return <p style={{ margin: "0 0 24px", fontSize: "15px", lineHeight: 1.8, color: "#9ca3af", whiteSpace: "pre-wrap" }}>{(block as { content: string }).content}</p>;
     case "image": {
       const b = block as { url: string; alt: string };
       if (!b.url) return null;
       // eslint-disable-next-line @next/next/no-img-element
-      return <img src={b.url} alt={b.alt} className="w-full rounded-lg mb-5" />;
+      return <div style={{ margin: "0 0 28px", borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <img src={b.url} alt={b.alt} style={{ display: "block", width: "100%", height: "auto" }} />
+      </div>;
     }
     case "video": {
       const b = block as { vimeoUrl: string; caption?: string };
       const id = extractVimeoId(b.vimeoUrl);
       if (!id) return null;
-      return (
-        <div className="mb-5">
-          <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-            <iframe
-              src={`https://player.vimeo.com/video/${id}?badge=0&autopause=0`}
-              className="absolute inset-0 w-full h-full"
-              allowFullScreen
-            />
-          </div>
-          {b.caption && <p className="text-xs text-gray-400 text-center mt-2">{b.caption}</p>}
-        </div>
-      );
+      return <VimeoPreviewBlock vimeoId={id} caption={b.caption} />;
     }
     case "button": {
       const b = block as { label: string; url: string; color?: string };
       return (
-        <div className="mb-5 text-center">
-          <span
-            className="inline-block px-6 py-3 rounded-lg text-white text-sm font-semibold cursor-pointer"
-            style={{ backgroundColor: b.color || "#f97316" }}
-          >
+        <div style={{ margin: "8px 0 32px", textAlign: "center" }}>
+          <span style={{
+            display: "inline-block", padding: "16px 40px",
+            backgroundColor: b.color || "#f97316", color: "#fff",
+            fontSize: "14px", fontWeight: 700, letterSpacing: "0.04em",
+            borderRadius: "10px", textTransform: "uppercase", cursor: "pointer",
+            boxShadow: "0 4px 24px rgba(249,115,22,0.35)"
+          }}>
             {b.label}
           </span>
         </div>
       );
     }
     case "divider":
-      return <hr className="border-gray-200 my-5" />;
+      return <div style={{ margin: "8px 0 32px", height: "1px", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)" }} />;
     case "spacer": {
-      const heights = { sm: "h-4", md: "h-8", lg: "h-12" };
-      return <div className={heights[(block as { size: "sm" | "md" | "lg" }).size]} />;
+      const heights = { sm: 16, md: 32, lg: 56 };
+      return <div style={{ height: heights[(block as { size: "sm" | "md" | "lg" }).size] }} />;
     }
     default:
       return null;
   }
+}
+
+function VimeoPreviewBlock({ vimeoId, caption }: { vimeoId: string; caption?: string }) {
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`https://vimeo.com/api/oembed.json?url=https://vimeo.com/${vimeoId}&width=600`)
+      .then((r) => r.json())
+      .then((d: { thumbnail_url?: string }) => setThumbnail(d.thumbnail_url || null))
+      .catch(() => null);
+  }, [vimeoId]);
+
+  return (
+    <div style={{ margin: "0 0 28px" }}>
+      <a
+        href={`https://vimeo.com/${vimeoId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ display: "block", position: "relative", borderRadius: "12px", overflow: "hidden", textDecoration: "none", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnail} alt="Watch video" style={{ display: "block", width: "100%", height: "auto" }} />
+        ) : (
+          <div style={{ width: "100%", aspectRatio: "16/9", background: "#111" }} />
+        )}
+        {/* Play button */}
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "linear-gradient(135deg,rgba(0,0,0,0.3),rgba(0,0,0,0.1))"
+        }}>
+          <div style={{
+            width: "64px", height: "64px", borderRadius: "50%",
+            background: "rgba(249,115,22,0.92)", display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 8px 32px rgba(249,115,22,0.5)"
+          }}>
+            <div style={{ width: 0, height: 0, borderTop: "12px solid transparent", borderBottom: "12px solid transparent", borderLeft: "20px solid #fff", marginLeft: "4px" }} />
+          </div>
+        </div>
+      </a>
+      {caption && <p style={{ fontSize: "13px", color: "#6b7280", textAlign: "center", margin: "10px 0 0" }}>{caption}</p>}
+      <p style={{ margin: "8px 0 0", textAlign: "center" }}>
+        <a href={`https://vimeo.com/${vimeoId}`} target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: "13px", color: "#f97316", textDecoration: "none" }}>
+          ▶ Watch on Vimeo
+        </a>
+      </p>
+    </div>
+  );
 }
