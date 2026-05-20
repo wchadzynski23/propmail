@@ -84,8 +84,11 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const resend = provider === "resend" ? new Resend(settings!.resendApiKey!) : null;
-  const replyTo = settings?.senderEmail || settings?.smtpUser || "";
+  const resend    = provider === "resend" ? new Resend(settings!.resendApiKey!) : null;
+  // Reply-To: user-configured address (where client replies land), fallback to sender
+  const replyTo   = settings?.replyTo   || settings?.senderEmail || settings?.smtpUser || "";
+  // HubSpot BCC: if set, every outgoing email is BCCed to HubSpot's log address
+  const hubspotBcc = settings?.hubspotBcc || null;
 
   let successCount = 0;
   let skippedCount = 0;
@@ -125,13 +128,21 @@ export async function POST(req: NextRequest) {
     try {
       if (provider === "resend" && resend) {
         const { error } = await resend.emails.send({
-          from, to: recipient.email, subject, html, text,
+          from,
+          to:       recipient.email,
+          ...(hubspotBcc ? { bcc: hubspotBcc } : {}),
+          ...(replyTo    ? { replyTo }          : {}),
+          subject, html, text,
           headers: antiSpamHeaders(replyTo, token),
         });
         if (error) throw new Error(error.message);
       } else if (smtpTransporter) {
         await smtpTransporter.sendMail({
-          from, to: recipient.email, subject, html, text,
+          from,
+          to:      recipient.email,
+          ...(hubspotBcc ? { bcc: hubspotBcc }     : {}),
+          ...(replyTo    ? { replyTo }              : {}),
+          subject, html, text,
           headers: antiSpamHeaders(replyTo, token),
         });
       }

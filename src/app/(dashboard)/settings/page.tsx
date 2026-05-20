@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Key, Mail, User, Save, CheckCircle2, AlertCircle,
   ExternalLink, Eye, EyeOff, MapPin, Phone, Globe, FileText,
-  Server, Lock, ChevronDown,
+  Server, Lock, ChevronDown, Reply, Webhook,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,6 +162,10 @@ export default function SettingsPage() {
   const [footerWebsite, setFooterWebsite]       = useState("");
   const [footerCustomText, setFooterCustomText] = useState("");
 
+  // Reply & CRM
+  const [replyTo,    setReplyTo]    = useState("");
+  const [hubspotBcc, setHubspotBcc] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -178,6 +182,8 @@ export default function SettingsPage() {
       setSmtpSecure(d.smtpSecure ?? false);
       setSmtpUser(d.smtpUser     || "");
       setSmtpPassword(d.smtpPassword || "");
+      setReplyTo(d.replyTo       || "");
+      setHubspotBcc(d.hubspotBcc || "");
       setFooterAgentName(d.footerAgentName   || "");
       setFooterTitle(d.footerTitle           || "");
       setFooterPhone(d.footerPhone           || "");
@@ -215,6 +221,8 @@ export default function SettingsPage() {
         smtpSecure:   provider !== "resend" ? smtpSecure : null,
         smtpUser:     provider !== "resend" ? smtpUser  : null,
         smtpPassword: provider !== "resend" ? smtpPassword : null,
+        replyTo:    replyTo    || null,
+        hubspotBcc: hubspotBcc || null,
       }),
     });
     setSaving(false);
@@ -419,6 +427,89 @@ export default function SettingsPage() {
               <span className="font-semibold text-foreground">Tip:</span>{" "}
               Leave blank to use your {preset.label} address as the sender.
             </p>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Reply-To & HubSpot CRM ──────────────────────────────────────── */}
+      <Section title="Replies & CRM Integration">
+        {/* Reply-To */}
+        <div className="space-y-1.5 mb-5">
+          <Label className="flex items-center gap-1.5">
+            <Reply className="h-3.5 w-3.5 text-primary" />
+            Reply-To Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={replyTo}
+              onChange={(e) => setReplyTo(e.target.value)}
+              type="email"
+              placeholder="jane@gmail.com"
+              className="pl-9"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            When a client hits <span className="font-medium text-foreground">Reply</span> on your email, their message goes here — not to your sending domain.
+            Use your real inbox (Gmail, Outlook, etc.).
+          </p>
+        </div>
+
+        {/* HubSpot BCC */}
+        <div className="space-y-1.5">
+          <Label className="flex items-center gap-1.5">
+            <Webhook className="h-3.5 w-3.5 text-primary" />
+            HubSpot BCC Log Address
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={hubspotBcc}
+              onChange={(e) => setHubspotBcc(e.target.value)}
+              placeholder="log-XXXXXXXX@hs-inbox.com"
+              className="pl-9 font-mono text-sm"
+            />
+          </div>
+          <div className="p-3 rounded-md bg-secondary/50 border border-border space-y-1.5">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Every email PropMail sends will be BCCed to this address.
+              HubSpot automatically logs it on the contact&apos;s timeline.
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Where to find it:</span>{" "}
+              HubSpot → Settings → General → Email →{" "}
+              <a
+                href="https://knowledge.hubspot.com/contacts/log-email-in-crm"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:brightness-110 inline-flex items-center gap-0.5"
+              >
+                Log email in CRM <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            </p>
+          </div>
+        </div>
+
+        {/* Live preview of the flow */}
+        {(replyTo || hubspotBcc) && (
+          <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 p-4 space-y-2">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60 mb-2">Email flow preview</p>
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <span className="font-mono text-primary mt-0.5">→</span>
+              <span>PropMail sends via <span className="text-foreground font-medium">Resend</span></span>
+            </div>
+            {replyTo && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <span className="font-mono text-primary mt-0.5">→</span>
+                <span>Client replies land in <span className="text-foreground font-medium">{replyTo}</span></span>
+              </div>
+            )}
+            {hubspotBcc && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <span className="font-mono text-primary mt-0.5">→</span>
+                <span>Every send logged to HubSpot via <span className="text-foreground font-medium">{hubspotBcc}</span></span>
+              </div>
+            )}
           </div>
         )}
       </Section>

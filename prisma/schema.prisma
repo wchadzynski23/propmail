@@ -58,6 +58,9 @@ model UserSettings {
   smtpSecure        Boolean? // true = TLS on connect (port 465), false = STARTTLS (587)
   smtpUser          String?
   smtpPassword      String?
+  // Reply & CRM routing
+  replyTo           String?  // Reply-To header — where client replies land
+  hubspotBcc        String?  // HubSpot BCC log address — logs every send to HubSpot CRM
 }
 
 model Template {

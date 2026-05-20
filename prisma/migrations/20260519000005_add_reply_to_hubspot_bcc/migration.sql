@@ -1,0 +1,2 @@
+ALTER TABLE "UserSettings" ADD COLUMN IF NOT EXISTS "replyTo"    TEXT;
+ALTER TABLE "UserSettings" ADD COLUMN IF NOT EXISTS "hubspotBcc" TEXT;

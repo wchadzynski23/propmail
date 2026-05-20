@@ -23,6 +23,7 @@ export async function PUT(req: NextRequest) {
     footerAgentName, footerTitle, footerPhone,
     footerAddress, footerWebsite, footerCustomText,
     smtpProvider, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword,
+    replyTo, hubspotBcc,
   } = await req.json();
 
   const data = {
@@ -35,6 +36,8 @@ export async function PUT(req: NextRequest) {
     smtpSecure:   smtpSecure   != null ? Boolean(smtpSecure) : null,
     smtpUser:     smtpUser     || null,
     smtpPassword: smtpPassword || null,
+    replyTo:      replyTo      || null,
+    hubspotBcc:   hubspotBcc   || null,
   };
 
   const settings = await db.userSettings.upsert({
