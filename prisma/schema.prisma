@@ -18,6 +18,23 @@ model User {
   templates    Template[]
   sends        EmailSend[]
   unsubscribes Unsubscribe[]
+  contacts     Contact[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  name      String?
+  phone     String?
+  company   String?
+  notes     String?
+  tags      String?  // comma-separated: "buyer,investor"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, email])
 }
 
 model UserSettings {

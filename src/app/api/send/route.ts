@@ -141,6 +141,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Auto-upsert contacts for every recipient that was attempted
+  await Promise.all(
+    recipients.map((r) =>
+      db.contact.upsert({
+        where:  { userId_email: { userId, email: r.email } },
+        create: { userId, email: r.email, name: r.name || null },
+        update: r.name ? { name: r.name } : {},   // only update name if provided
+      })
+    )
+  );
+
   await db.emailSend.create({
     data: {
       userId,

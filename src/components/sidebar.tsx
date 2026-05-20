@@ -11,14 +11,18 @@ import {
   LogOut,
   Mail,
   ChevronRight,
+  Users,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/templates", label: "Templates", icon: FileText },
-  { href: "/send", label: "Send Email", icon: Send },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/templates",  label: "Templates",  icon: FileText },
+  { href: "/contacts",   label: "Contacts",   icon: Users },
+  { href: "/send",       label: "Send Email", icon: Send },
+  { href: "/sent",       label: "Sent",       icon: History },
+  { href: "/settings",   label: "Settings",   icon: Settings },
 ];
 
 export function Sidebar() {
