@@ -6,12 +6,23 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { renderBlocksToHtml, renderBlocksToText, Block, AgentFooter } from "@/lib/email-renderer";
 
-const ANTI_SPAM_HEADERS = (senderEmail: string) => ({
-  "List-Unsubscribe":      `<mailto:${senderEmail}?subject=Unsubscribe>`,
-  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-  "Precedence":            "bulk",
-  "X-Mailer":              "PropMail/1.0",
-});
+const BASE_URL = process.env.NEXTAUTH_URL || "https://agent.vizmadesign.com";
+
+function unsubscribeUrl(token: string) {
+  return `${BASE_URL}/api/unsubscribe?token=${token}`;
+}
+
+function antiSpamHeaders(replyTo: string, token: string) {
+  const unsub = unsubscribeUrl(token);
+  return {
+    // RFC 2369 — Gmail / Apple Mail show a native "Unsubscribe" button
+    "List-Unsubscribe":      `<${unsub}>, <mailto:${replyTo}?subject=Unsubscribe>`,
+    // RFC 8058 — one-click POST unsubscribe (Gmail requires this for bulk senders)
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "Precedence":            "bulk",
+    "X-Mailer":              "PropMail/1.0",
+  };
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -22,7 +33,6 @@ export async function POST(req: NextRequest) {
 
   const provider = settings?.smtpProvider || "resend";
 
-  // Validate provider credentials exist
   if (provider === "resend" && !settings?.resendApiKey) {
     return NextResponse.json(
       { error: "Resend API key not configured. Go to Settings first." },
@@ -70,10 +80,7 @@ export async function POST(req: NextRequest) {
       host:   settings!.smtpHost!,
       port:   settings!.smtpPort!,
       secure: settings!.smtpSecure ?? false,
-      auth: {
-        user: settings!.smtpUser!,
-        pass: settings!.smtpPassword!,
-      },
+      auth: { user: settings!.smtpUser!, pass: settings!.smtpPassword! },
     });
   }
 
@@ -81,13 +88,30 @@ export async function POST(req: NextRequest) {
   const replyTo = settings?.senderEmail || settings?.smtpUser || "";
 
   let successCount = 0;
+  let skippedCount = 0;
   const errors: string[] = [];
 
   for (const recipient of recipients) {
+    // ── 1. Upsert unsubscribe record (creates token on first send) ────────────
+    const unsub = await db.unsubscribe.upsert({
+      where:  { agentUserId_email: { agentUserId: userId, email: recipient.email } },
+      create: { agentUserId: userId, email: recipient.email },
+      update: {},   // keep existing token & unsubscribedAt untouched
+    });
+
+    // ── 2. Skip opted-out recipients ─────────────────────────────────────────
+    if (unsub.unsubscribedAt) {
+      skippedCount++;
+      continue;
+    }
+
+    const token = unsub.token;
+
+    // ── 3. Render email ───────────────────────────────────────────────────────
     const vars: Record<string, string> = {
       name:           recipient.name  || "",
       email:          recipient.email || "",
-      unsubscribeUrl: `mailto:${replyTo}?subject=Unsubscribe`,
+      unsubscribeUrl: unsubscribeUrl(token),
     };
 
     const subject = template.subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
@@ -97,25 +121,18 @@ export async function POST(req: NextRequest) {
       Promise.resolve(renderBlocksToText(blocks, vars, footer)),
     ]);
 
+    // ── 4. Send ───────────────────────────────────────────────────────────────
     try {
       if (provider === "resend" && resend) {
         const { error } = await resend.emails.send({
-          from,
-          to: recipient.email,
-          subject,
-          html,
-          text,
-          headers: ANTI_SPAM_HEADERS(replyTo),
+          from, to: recipient.email, subject, html, text,
+          headers: antiSpamHeaders(replyTo, token),
         });
         if (error) throw new Error(error.message);
       } else if (smtpTransporter) {
         await smtpTransporter.sendMail({
-          from,
-          to: recipient.email,
-          subject,
-          html,
-          text,
-          headers: ANTI_SPAM_HEADERS(replyTo),
+          from, to: recipient.email, subject, html, text,
+          headers: antiSpamHeaders(replyTo, token),
         });
       }
       successCount++;
@@ -129,9 +146,13 @@ export async function POST(req: NextRequest) {
       userId,
       templateId,
       recipients: JSON.stringify(recipients),
-      status: errors.length === 0 ? "sent" : errors.length === recipients.length ? "failed" : "partial",
+      status:
+        errors.length === 0 && successCount > 0 ? "sent"
+        : successCount === 0 && errors.length === 0 ? "skipped"
+        : errors.length === recipients.length ? "failed"
+        : "partial",
     },
   });
 
-  return NextResponse.json({ sent: successCount, errors });
+  return NextResponse.json({ sent: successCount, skipped: skippedCount, errors });
 }

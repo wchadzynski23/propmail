@@ -9,14 +9,15 @@ datasource db {
 }
 
 model User {
-  id        String        @id @default(cuid())
-  email     String        @unique
-  password  String
-  name      String?
-  createdAt DateTime      @default(now())
-  settings  UserSettings?
-  templates Template[]
-  sends     EmailSend[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  name         String?
+  createdAt    DateTime      @default(now())
+  settings     UserSettings?
+  templates    Template[]
+  sends        EmailSend[]
+  unsubscribes Unsubscribe[]
 }
 
 model UserSettings {
@@ -63,4 +64,19 @@ model EmailSend {
   recipients String   // JSON string: [{email, name}]
   status     String   @default("sent")
   sentAt     DateTime @default(now())
+}
+
+// One row per (agent, recipient email).
+// token  — included in every email's unsubscribe URL.
+// unsubscribedAt — null means still subscribed; set = opted out.
+model Unsubscribe {
+  id               String    @id @default(cuid())
+  token            String    @unique @default(cuid())
+  agentUserId      String
+  agentUser        User      @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  email            String
+  unsubscribedAt   DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@unique([agentUserId, email])
 }
