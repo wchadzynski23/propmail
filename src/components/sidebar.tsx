@@ -35,9 +35,14 @@ export function Sidebar() {
             <Mail className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
-            <span className="font-display font-bold text-foreground tracking-tight text-engraved">
-              PropMail
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-bold text-foreground tracking-tight text-engraved">
+                PropMail
+              </span>
+              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 leading-none tracking-wide">
+                v1.0
+              </span>
+            </div>
             <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
               Real Estate Email
             </div>
