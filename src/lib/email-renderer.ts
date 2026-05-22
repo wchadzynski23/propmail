@@ -19,17 +19,32 @@ export interface AgentFooter {
 }
 
 async function fetchVimeoThumbnail(id: string): Promise<string> {
+  // Strategy 1 — oEmbed (returns high-res thumbnail)
   try {
     const res = await fetch(
-      `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${id}&width=600`,
-      { next: { revalidate: 3600 } }
+      `https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F${id}&width=600`,
+      { cache: "force-cache" }
     );
-    if (!res.ok) return "";
-    const data = await res.json() as { thumbnail_url?: string };
-    return data.thumbnail_url || "";
-  } catch {
-    return "";
-  }
+    if (res.ok) {
+      const data = await res.json() as { thumbnail_url?: string };
+      if (data.thumbnail_url) return data.thumbnail_url;
+    }
+  } catch { /* fall through */ }
+
+  // Strategy 2 — Simple API v2 (more permissive, works for more videos)
+  try {
+    const res = await fetch(
+      `https://vimeo.com/api/v2/video/${id}.json`,
+      { cache: "force-cache" }
+    );
+    if (res.ok) {
+      const data = await res.json() as Array<{ thumbnail_large?: string; thumbnail_medium?: string }>;
+      const thumb = data?.[0]?.thumbnail_large || data?.[0]?.thumbnail_medium;
+      if (thumb) return thumb;
+    }
+  } catch { /* fall through */ }
+
+  return "";
 }
 
 function interpolate(text: string, variables: Record<string, string>): string {
@@ -264,33 +279,41 @@ async function renderBlock(block: Block, vars: Record<string, string>): Promise<
       const thumbnail = await fetchVimeoThumbnail(id);
       const vimeoLink = `https://vimeo.com/${id}`;
 
-      const imgHtml = thumbnail
-        ? `<img src="${thumbnail}" alt="Watch: ${block.caption || "Video"}" width="504" class="fluid" style="display:block;width:100%;max-width:504px;height:auto;" />`
-        : `<div style="width:100%;padding-bottom:56.25%;background:#0d0d14;"></div>`;
+      // Email-safe video card: thumbnail row + play-button row (no position:absolute)
+      const thumbnailRow = thumbnail
+        ? `
+          <tr>
+            <td style="padding:0;border-radius:14px 14px 0 0;overflow:hidden;line-height:0;font-size:0;">
+              <a href="${vimeoLink}" target="_blank" style="display:block;text-decoration:none;line-height:0;font-size:0;">
+                <img src="${thumbnail}"
+                  alt="${block.caption ? block.caption : "Watch video on Vimeo"}"
+                  width="504"
+                  class="fluid"
+                  style="display:block;width:100%;max-width:504px;height:auto;border:0;outline:none;text-decoration:none;" />
+              </a>
+            </td>
+          </tr>`
+        : `
+          <tr>
+            <td style="background:#0d0d14;padding:48px 0;border-radius:14px 14px 0 0;text-align:center;">
+              <p style="margin:0;font-size:14px;color:#4b5563;font-family:sans-serif;">Video preview unavailable</p>
+            </td>
+          </tr>`;
 
       return `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
-          <tr><td>
-            <!-- Vimeo thumbnail — click to watch -->
-            <a href="${vimeoLink}" target="_blank" style="display:block;text-decoration:none;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.09);position:relative;">
-              ${imgHtml}
-              <!--[if !mso]><!-->
-              <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.05) 100%);">
-                <table role="presentation" width="100%" height="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr><td align="center" valign="middle" style="padding:80px 0;">
-                    <div style="display:inline-block;width:76px;height:76px;background:rgba(249,115,22,0.95);border-radius:50%;text-align:center;line-height:76px;box-shadow:0 8px 40px rgba(249,115,22,0.55);">
-                      <span style="display:inline-block;width:0;height:0;border-top:15px solid transparent;border-bottom:15px solid transparent;border-left:24px solid #ffffff;margin-left:7px;vertical-align:middle;"></span>
-                    </div>
-                  </td></tr>
-                </table>
-              </div>
-              <!--<![endif]-->
-            </a>
-            ${block.caption ? `<p style="margin:10px 0 0;text-align:center;font-size:13px;color:#6b7280;font-family:sans-serif;">${block.caption}</p>` : ""}
-            <p style="margin:8px 0 0;text-align:center;">
-              <a href="${vimeoLink}" target="_blank" style="font-size:13px;color:#f97316;text-decoration:none;font-weight:600;letter-spacing:0.02em;font-family:sans-serif;">▶&nbsp; Watch on Vimeo</a>
-            </p>
-          </td></tr>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="margin:0 0 28px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.09);">
+          <!-- Thumbnail -->
+          ${thumbnailRow}
+          <!-- Play button bar -->
+          <tr>
+            <td align="center" style="background:#141420;padding:14px 24px;border-radius:0 0 14px 14px;">
+              <a href="${vimeoLink}" target="_blank"
+                style="display:inline-block;padding:10px 24px;background-color:#f97316;border-radius:8px;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:700;color:#ffffff;letter-spacing:0.04em;">
+                &#9658;&nbsp;&nbsp;${block.caption ? block.caption : "Watch on Vimeo"}
+              </a>
+            </td>
+          </tr>
         </table>`;
     }
 
