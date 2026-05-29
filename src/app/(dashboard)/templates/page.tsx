@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Edit2, Trash2, Send, Clock, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, FileText, Edit2, Trash2, Send, Clock, Sparkles, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,15 +17,27 @@ interface Template {
 }
 
 export default function TemplatesPage() {
+  const router = useRouter();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/templates")
       .then((r) => r.json())
       .then((data) => { setTemplates(data); setLoading(false); });
   }, []);
+
+  async function duplicateTemplate(id: string) {
+    setDuplicating(id);
+    const res = await fetch(`/api/templates/${id}/duplicate`, { method: "POST" });
+    if (res.ok) {
+      const copy = await res.json();
+      router.push(`/templates/${copy.id}`);
+    }
+    setDuplicating(null);
+  }
 
   async function deleteTemplate(id: string) {
     if (!confirm("Delete this template?")) return;
@@ -123,6 +136,19 @@ export default function TemplatesPage() {
                     Edit
                   </Button>
                 </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => duplicateTemplate(t.id)}
+                  disabled={duplicating === t.id}
+                  title="Duplicate template"
+                  className="hover:text-primary hover:bg-primary/10"
+                >
+                  {duplicating === t.id
+                    ? <span className="h-3.5 w-3.5 animate-spin border border-current border-t-transparent rounded-full inline-block" />
+                    : <Copy className="h-3.5 w-3.5" />
+                  }
+                </Button>
                 <Link href={`/send?template=${t.id}`}>
                   <Button variant="console" size="sm">
                     <Send className="h-3.5 w-3.5" />

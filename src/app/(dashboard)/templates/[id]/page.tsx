@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Send, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Send, AlertCircle, Loader2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ export default function EditTemplatePage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -34,6 +35,16 @@ export default function EditTemplatePage() {
   }, [id]);
 
   const handleBlocksChange = useCallback((b: Block[]) => setBlocks(b), []);
+
+  async function duplicate() {
+    setDuplicating(true);
+    const res = await fetch(`/api/templates/${id}/duplicate`, { method: "POST" });
+    if (res.ok) {
+      const copy = await res.json();
+      router.push(`/templates/${copy.id}`);
+    }
+    setDuplicating(false);
+  }
 
   async function save() {
     if (!name.trim() || !subject.trim()) {
@@ -81,6 +92,13 @@ export default function EditTemplatePage() {
           <h1 className="text-2xl font-bold text-foreground text-engraved">{name || "Untitled"}</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" onClick={duplicate} disabled={duplicating} title="Duplicate as new template">
+            {duplicating
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Copy className="h-4 w-4" />
+            }
+            {duplicating ? "Copying..." : "Duplicate"}
+          </Button>
           <Link href={`/send?template=${id}`}>
             <Button variant="metal">
               <Send className="h-4 w-4" />
